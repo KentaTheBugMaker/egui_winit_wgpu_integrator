@@ -10,8 +10,9 @@ use egui_wgpu_backend::{epi, wgpu, RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
 use futures_lite::future::block_on;
 use std::time::Instant;
+use winit::event::WindowEvent;
 
-mod window_settings;
+
 
 struct RequestRepaintEvent;
 struct WgpuRepaintSignal(std::sync::Mutex<winit::event_loop::EventLoopProxy<RequestRepaintEvent>>);
@@ -38,7 +39,7 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
     }))
     .unwrap();
 
-    let (mut device, mut queue) = block_on(adapter.request_device(
+    let (device, queue) = block_on(adapter.request_device(
         &DeviceDescriptor {
             features: Features::default(),
             limits: Limits::default(),
@@ -119,12 +120,7 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
             };
             egui_render_pass.update_texture(&device, &queue, &platform.context().texture());
             egui_render_pass.update_user_textures(&device, &queue);
-            egui_render_pass.update_buffers(
-                &mut device,
-                &mut queue,
-                &clipped_meshes,
-                &screen_descriptor,
-            );
+            egui_render_pass.update_buffers(&device, &queue, &clipped_meshes, &screen_descriptor);
             egui_render_pass.execute(
                 &mut encoder,
                 &output_frame.output.view,
@@ -158,21 +154,19 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
         match event {
             winit::event::Event::RedrawEventsCleared if cfg!(windows) => redraw(),
             winit::event::Event::RedrawRequested(_) if !cfg!(windows) => redraw(),
-            winit::event::Event::WindowEvent { event, .. } => {
-                match event {
-                    winit::event::WindowEvent::Resized(size) => {
-                        sc_desc.width = size.width;
-                        sc_desc.height = size.height;
-                        swap_chain = device.create_swap_chain(&surface, &sc_desc);
-                    }
-                    _ => {}
-                }
+            winit::event::Event::WindowEvent {
+                event: WindowEvent::Resized(size),
+                ..
+            } => {
+                sc_desc.width = size.width;
+                sc_desc.height = size.height;
+                swap_chain = device.create_swap_chain(&surface, &sc_desc);
             }
             winit::event::Event::MainEventsCleared
-            | winit::event::Event::UserEvent(RequestRepaintEvent) =>{
+            | winit::event::Event::UserEvent(RequestRepaintEvent) => {
                 platform.handle_event(&event);
                 window.request_redraw()
-            },
+            }
             _ => (),
         }
     });
