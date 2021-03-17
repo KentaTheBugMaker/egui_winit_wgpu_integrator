@@ -3,14 +3,14 @@ use egui_wgpu_backend::epi::backend::AppOutput;
 use egui_wgpu_backend::epi::IntegrationInfo;
 use egui_wgpu_backend::wgpu::{
     BackendBit, CommandEncoderDescriptor, DeviceDescriptor, Features, Instance, Limits,
-    PowerPreference, PresentMode, RequestAdapterOptions, SwapChainDescriptor, TextureFormat,
-    TextureUsage,
+    PowerPreference, PresentMode, RequestAdapterOptions, SwapChainDescriptor, TextureUsage,
 };
 use egui_wgpu_backend::{epi, wgpu, RenderPass, ScreenDescriptor};
 use egui_winit_platform::{Platform, PlatformDescriptor};
 use futures_lite::future::block_on;
 use std::time::Instant;
 use winit::event::WindowEvent;
+use winit::event_loop::ControlFlow;
 
 struct RequestRepaintEvent;
 struct WgpuRepaintSignal(std::sync::Mutex<winit::event_loop::EventLoopProxy<RequestRepaintEvent>>);
@@ -19,7 +19,7 @@ impl epi::RepaintSignal for WgpuRepaintSignal {
         self.0.lock().unwrap().send_event(RequestRepaintEvent).ok();
     }
 }
-
+const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 pub fn run(mut app: Box<dyn epi::App>) -> ! {
     let event_loop = winit::event_loop::EventLoop::with_user_event();
     let name = app.name();
@@ -50,7 +50,7 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
     let size = window.inner_size();
     let mut sc_desc = SwapChainDescriptor {
         usage: TextureUsage::RENDER_ATTACHMENT,
-        format: TextureFormat::Rgba8UnormSrgb,
+        format: OUTPUT_FORMAT,
         width: size.width,
         height: size.height,
         present_mode: PresentMode::Mailbox,
@@ -69,12 +69,13 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
         style: Default::default(),
     });
     let mut previous_frame_time = None;
-    let mut egui_render_pass = RenderPass::new(&device, TextureFormat::Rgba8UnormSrgb);
+    let mut egui_render_pass = RenderPass::new(&device, OUTPUT_FORMAT);
     let start_time = Instant::now();
     #[cfg(feature = "http")]
     let http = std::sync::Arc::new(epi_http::EpiHttp {});
 
     event_loop.run(move |event, _, control_flow| {
+        platform.handle_event(&event);
         let mut redraw = || {
             platform.update_time(start_time.elapsed().as_secs_f64());
 
@@ -88,6 +89,7 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
 
             let pixel_pre_point = window.scale_factor();
             let frame_start = Instant::now();
+            platform.begin_frame();
             let mut app_output = epi::backend::AppOutput::default();
             let mut frame = epi::backend::FrameBuilder {
                 info: IntegrationInfo {
@@ -160,11 +162,14 @@ pub fn run(mut app: Box<dyn epi::App>) -> ! {
                 sc_desc.height = size.height;
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
             }
-            winit::event::Event::MainEventsCleared
-            | winit::event::Event::UserEvent(RequestRepaintEvent) => {
-                platform.handle_event(&event);
-                window.request_redraw()
+            winit::event::Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                *control_flow = ControlFlow::Exit;
             }
+            winit::event::Event::MainEventsCleared
+            | winit::event::Event::UserEvent(RequestRepaintEvent) => window.request_redraw(),
             _ => (),
         }
     });

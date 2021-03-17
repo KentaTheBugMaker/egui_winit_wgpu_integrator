@@ -6,13 +6,15 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-http=["epi_http/native"]
+http=["egui_demo_lib/syntect","egui_demo_lib/http","epi_http"]
 
 [dependencies]
-egui_wgpu_backend = {git="https://github.com/hasenbanck/egui_wgpu_backend.git",branch="master"}
-egui_winit_platform = {git="https://github.com/hasenbanck/egui_winit_platform.git",branch="master"}
-winit ="0.24.0"
+egui_wgpu_backend = "0.5.0"
+egui_winit_platform={version="0.5.0",features=["webbrowser","clipboard"]}
 futures-lite = "1.11"
-epi_http={git="https://github.com/t18b219k/epi_http.git",branch="master",optional=true}
 chrono = "0.4"
-wgpu-subscriber = "*"
+epi_http={git="https://github.com/t18b219k/epi_http.git",branch="master",optional=true}
+winit="0.24"
+
+[dev-dependencies]
+egui_demo_lib = "0.10.0"
