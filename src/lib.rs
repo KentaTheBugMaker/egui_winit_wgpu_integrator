@@ -12,8 +12,6 @@ use futures_lite::future::block_on;
 use std::time::Instant;
 use winit::event::WindowEvent;
 
-
-
 struct RequestRepaintEvent;
 struct WgpuRepaintSignal(std::sync::Mutex<winit::event_loop::EventLoopProxy<RequestRepaintEvent>>);
 impl epi::RepaintSignal for WgpuRepaintSignal {
